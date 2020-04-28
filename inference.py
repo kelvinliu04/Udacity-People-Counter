@@ -1,84 +1,102 @@
-import cv2
+#!/usr/bin/env python3
+"""
+ Copyright (c) 2018 Intel Corporation.
+
+ Permission is hereby granted, free of charge, to any person obtaining
+ a copy of this software and associated documentation files (the
+ "Software"), to deal in the Software without restriction, including
+ without limitation the rights to use, copy, modify, merge, publish,
+ distribute, sublicense, and/or sell copies of the Software, and to
+ permit persons to whom the Software is furnished to do so, subject to
+ the following conditions:
+
+ The above copyright notice and this permission notice shall be
+ included in all copies or substantial portions of the Software.
+
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+ LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+"""
+
+import os
+import sys
+import logging as log
 from openvino.inference_engine import IENetwork, IECore
 
-class OpenVinoNetwork:
-    '''
-    OPENVINO INFERENCE TEMPLETE 
-    - kelvinliu04@gmail.com 
+
+class Network:
+    """
+    Load and configure inference plugins for the specified target devices 
+    and performs synchronous and asynchronous modes for the specified infer requests.
     ---------------------------
-    example using:
-        person_det = Network('person-detection-retail-0013', folder=None)
+    OPENVINO INFERENCE TEMPLETE 
+    - kelvin liusiani
+    """
+
+    def __init__(self):
+        ### TODO: Initialize any class variables desired ###(ok)
+        self.plugin = None
+        self.network = None
+        self.input_blob = None
+        self.output_blob = None
+        self.exec_network = None
+        self.infer_request = None
+
+    def load_model(self, model, device="CPU", cpu_extension=None):
+        ### TODO: Load the model ###(ok)
+        model_xml = model
+        model_bin = os.path.splitext(model_xml)[0] + ".bin"
         
-        # ======================== for asynchronous
-        person_det.async_inference(frame)
-        if person_det.wait() == 0:
-            person_det.get_output()
+        plugin = IECore()
+        network = IENetwork(model=model_xml, weights=model_bin)
+        
+        ### TODO: Check for supported layers ###(ok)
+        supported_layers = plugin.query_network(network=network, device_name=device)
+        unsupported_layers = [l for l in network.layers.keys() if l not in supported_layers]
+        if len(unsupported_layers) > 2:
+            print("Unsupported layers found: {}".format(unsupported_layers))
+            print("Check whether extensions are available to add to IECore.")
+            exit(1)
+
+    
+        ### TODO: Add any necessary extensions ###(ok)
+        if cpu_extension and "CPU" in device:
+            plugin.add_extension(cpu_extension, device)
             
-        # ======================== for synchronous
-        person_det.sync_inference(frame)
-        person_det.get_output()
-    
-    '''
-    def __init__(self , model, folder='', device='CPU', cpu_extension=None): 
-        model_bin = folder + "/" + model + ".bin"
-        model_xml = folder + "/" + model + ".xml"
-        # Load Plugin
-        self.plugin = IECore()
-        if cpu_extension and "CPU" in device:                # Add a CPU extension, if applicable
-            self.plugin.add_extension(cpu_extension, device)
-        # Load Model
-        self.load_model(model_bin, model_xml, device)
-        print('Model: {}'.format(model))
-
-    def load_model(self, model_bin, model_xml, device):
-        '''
-        1) Load model only once
-        '''
-        # Load Model
-        net = IENetwork(model=model_xml, weights=model_bin)
-        self.exec_net = self.plugin.load_network(net, device)
-        # Input Output Blob
-        self.input_blob = next(iter(net.inputs))
-        self.output_blob = next(iter(net.outputs))
-        # Input Shape [BxCxHxW] B=N
-        self.n, self.c, self.h, self.w = net.inputs[self.input_blob].shape
-        # print Model Input Output 
-        print('Input: {}'.format(self.input_blob))
-        print('Output: {}'.format(self.output_blob))
+        ### TODO: Return the loaded inference plugin ###(ok)
+        self.exec_network = plugin.load_network(network, device)
         
-    def preprocessing(self, image):
-        '''
-        2) prepare input (reshape img)
-        '''
-        img = cv2.dnn.blobFromImage(image, size=(self.w, self.h))
-        return img
-    
-    def sync_inference(self, image):
-        '''
-        3.a)Using synchronous inference
-        '''
-        image = self.preprocessing(image)
-        self.exec_net.requests[0].infer({self.input_blob: image})
+        ### Note: You may need to update the function parameters. ###(ok)
+        self.input_blob = next(iter(network.inputs))
+        self.output_blob = next(iter(network.outputs))
+        self.plugin = plugin
+        self.network = network
         
+        return
 
-    def async_inference(self, image):
-        '''
-        3.b.1) Makes an asynchronous inference request, given an input image.
-        '''
-        image = self.preprocessing(image)
-        self.exec_net.start_async(request_id=0, 
-            inputs={self.input_blob: image})
-    
+    def get_input_shape(self):
+        ### TODO: Return the shape of the input layer ###(ok)
+        return self.network.inputs[self.input_blob].shape
+
+    def exec_net(self, image):
+        ### TODO: Start an asynchronous request ###(ok)
+        self.exec_network.start_async(request_id=0, inputs={self.input_blob: image})
+        ### TODO: Return any necessary information ###(ok)
+        ### Note: You may need to update the function parameters. ###
+        return 
+
     def wait(self):
-       '''
-       3.b.2) Checks the status of the inference request.
-       '''
-       status = self.exec_net.requests[0].wait(-1)
-       return status
-   
+        ### TODO: Wait for the request to be complete. ###(ok)
+        status = self.exec_network.requests[0].wait(-1)
+        ### TODO: Return any necessary information ###(ok)
+        ### Note: You may need to update the function parameters. ###
+        return status
+
     def get_output(self):
-        '''
-        4) Returns a list of the results for the output layer of the network.
-        '''
-        return self.exec_net.requests[0].outputs[self.output_blob]
-    
+        ### TODO: Extract and return the output results(ok)
+        ### Note: You may need to update the function parameters. ###
+        return self.exec_network.requests[0].outputs[self.output_blob]
